@@ -17,6 +17,7 @@ app.use(require('./router/MovieDirector.js'))
 app.use(require('./router/MovieInfo.js'))
 app.use(require('./router/MovieThumb.js'))
 app.use(require('./router/Cinema.js'))
+app.use(require('./router/CinemaRoom.js'))
 
 /**
  * 接口， 处理/请求
