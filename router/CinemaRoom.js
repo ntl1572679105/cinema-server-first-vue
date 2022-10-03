@@ -70,6 +70,50 @@ router.get("/cinema-rooms/cinemaid", (req, resp) => {
 });
 
 /**
+ * 通过ID查询放映厅接口
+ * @param:
+ *   id:   放映厅id
+ * @return:
+ *   {code:200, msg:'ok', data:{}}
+ */
+ router.get("/cinema-room/query", (req, resp) => {
+  let { id } = req.query;
+  // 表单验证
+  let schema = Joi.object({
+    id: Joi.string().required(), // 必填
+  });
+  let { error, value } = schema.validate(req.query);
+  if (error) {
+    resp.send(Response.error(400, error));
+    return; // 结束
+  }
+
+  // 执行查询业务
+  let sql = `select   
+    mcr.room_name cinema_room_name,
+    mcr.room_size cinema_room_size,
+    mcr.movie_cinema_id cinema_id,
+    mcr.room_type cinema_room_type,
+    mc.cinema_name cinema_name
+  from 
+    movie_cinema_room mcr join movie_cinema mc on mcr.movie_cinema_id=mc.id 
+  where 
+    mcr.id=?`;
+  pool.query(sql, [id], (error, result) => {
+    if (error) {
+      resp.send(Response.error(500, error));
+      throw error;
+    }
+    if (result && result.length == 0) {
+      // 没查到
+      resp.send(Response.ok(null));
+    } else {
+      resp.send(Response.ok(result[0]));
+    }
+  });
+});
+
+/**
  * 查询所有放映厅的类型
  * @param:
  *   无
@@ -123,6 +167,33 @@ router.post("/cinema-room/add", (req, resp) => {
     resp.send(Response.ok());
   });
 });
+
+router.post('/cinema-room/edit-seat-template', (req, resp)=>{
+  let { id, seat_template, room_size } = req.body; // post请求参数在req.body中
+
+  // 表单验证
+  let schema = Joi.object({
+    id: Joi.string().required(),
+    seat_template: Joi.string().required(),
+    room_size: Joi.string().required(),
+  });
+  let { error, value } = schema.validate(req.body);
+  if (error) {
+    resp.send(Response.error(400, error));
+    return; // 结束
+  }
+
+  // 执行sql
+  let sql = "update movie_cinema_room set seat_template=?, room_size=? where id=?"
+  pool.query(sql, [seat_template, room_size, id], (error, result)=>{
+    if (error) {
+      resp.send(Response.error(500, error));
+      throw error;
+    }
+    resp.send(Response.ok());
+  })
+
+})
 
 // 将router对象导出
 module.exports = router;
