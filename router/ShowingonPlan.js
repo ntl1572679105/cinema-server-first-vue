@@ -6,9 +6,10 @@ const Response = require("../utils/Response.js");
 
 // 引入mysql连接池
 const pool = require("../utils/db.js");
+var moment = require('moment');
 
 /**
- * 通过ID查询放映厅接口
+ * 通过room_id查询放映厅的所有排片计划接口
  * @param:
  *   id:   放映厅id
  * @return:
@@ -43,12 +44,10 @@ router.get("/plans/roomid", (req, resp) => {
   ORDER BY 
     showingon_date, showingon_time`;
 
-  let now = new Date();
-  let year = now.getFullYear();
-  let month =
-    now.getMonth() + 1 < 10 ? "0" + (now.getMonth() + 1) : now.getMonth();
-  let day = now.getDate() ? "0" + now.getDate() : now.getDate();
-  let time = `${year}-${month}-${day}`;
+  let time = moment().format('YYYY-MM-DD')
+  console.log(`room_id:`+room_id)
+  console.log(`time:`+room_id)
+  
   pool.query(sql, [room_id, time], (error, result) => {
     if (error) {
       resp.send(Response.error(500, error));

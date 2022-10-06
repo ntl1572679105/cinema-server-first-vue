@@ -68,7 +68,16 @@ router.post("/movie-info/add", (req, resp) => {
         resp.send(Response.error(500, error));
         throw error;
       }
-      resp.send(Response.ok());
+      // 获取当前添加电影的ID，并新增movie_desc表
+      let insertId = result.insertId
+      let sql2 = 'insert into movie_desc (movieid, description) values (?, ?)';
+      pool.query(sql2, [insertId, description], (error2, result2) => {
+        if (error2) {
+          resp.send(Response.error(500, error2));
+          throw error2;
+        }
+        resp.send(Response.ok());
+      })
     }
   );
 });
@@ -90,6 +99,50 @@ router.get("/movie-types", (req, resp) => {
     resp.send(Response.ok(result));
   });
 });
+
+/**
+ * 通过类别ID查询所有电影
+ * @param:
+ *   详见接口文档
+ * @return:
+ *   {code:200, msg:'ok', data:[]}
+ */
+ router.get("/movie-infos/category", async (req, resp) => {
+  // 获取请求参数   get请求的参数封装在req.query中
+  let { page, pagesize, cid } = req.query;
+
+  //TODO 服务端表单验证  如果验证通过那么继续后续业务  如果验证不通过，则直接返回参数异常
+  let schema = Joi.object({
+    cid: Joi.number().required(), // cid必须是数字，必填
+    page: Joi.number().required(), // page必须是数字，必填
+    pagesize: Joi.number().integer().max(100).required(), // pagesize必须是不大于100的数字，必填
+  });
+  let { error, value } = schema.validate(req.query);
+  if (error) {
+    resp.send(Response.error(400, error));
+    return; // 结束
+  }
+
+  // 执行查询数组业务
+  try {
+    cid = parseInt(cid);
+    let startIndex = (page - 1) * pagesize;
+    let size = parseInt(pagesize);
+    let sql = "select * from movie_info where category_id=? limit ?,?";
+    console.log(`------------------------select * from movie_info where category_id=${cid} limit ${startIndex},${size}---------------------------`)
+    let result = await pool.querySync(sql, [cid, startIndex, size]);
+    // 执行查询总条目数
+    let sql2 = "select count(*) as count from movie_info where category_id=?";
+    let result2 = await pool.querySync(sql2, [cid]);
+    let total = result2[0].count;
+    resp.send(
+      Response.ok({ page: parseInt(page), pagesize: size, total, result })
+    );
+  } catch (error) {
+    resp.send(Response.error(error));
+  }
+});
+
 
 /**
  * 查询所有电影
@@ -200,7 +253,13 @@ router.post("/movie-info/del", (req, resp) => {
       resp.send(Response.error(500, error));
       throw error;
     }
-    resp.send(Response.ok());
+    pool.query('delete from movie_desc where movieid=?', [id], (error2, result2) => {
+      if (error2) {
+        resp.send(Response.error(500, error2));
+        throw error2;
+      }
+      resp.send(Response.ok());
+    })
   });
 });
 
@@ -224,7 +283,21 @@ router.get("/movie-info/query", (req, resp) => {
   }
 
   // 执行查询业务
-  let sql = "select * from movie_info where id=?";
+  let sql = `select 
+              mi.id id,
+              mi.category_id category_id,
+              mi.cover cover,
+              mi.title title,
+              mi.type type,
+              mi.star_actor star_actor,
+              mi.showingon showingon,
+              mi.score score,
+              mi.duration duration,
+              md.description description,
+              md.director director,
+              md.actor actor,
+              md.thumb thumb
+            from movie_info mi join movie_desc md on mi.id=md.movieid where mi.id=? LIMIT 0,1;`;
   pool.query(sql, [id], (error, result) => {
     if (error) {
       resp.send(Response.error(500, error));
@@ -273,7 +346,7 @@ router.post("/movie-info/update", (req, resp) => {
     description: Joi.string().required(),
     duration: Joi.number().required(),
   });
-  let { error, value } = schema.validate(req.body);
+  let { error, value } = schema.validate(req.body, {allowUnknown: true});
   if (error) {
     resp.send(Response.error(400, error));
     return; // 结束
@@ -300,7 +373,14 @@ router.post("/movie-info/update", (req, resp) => {
         resp.send(Response.error(500, error));
         throw error;
       }
-      resp.send(Response.ok());
+      // 修改基本信息成功，将简介更新到movie_desc表
+      pool.query('update movie_desc set description=? where movieid=?', [description, id], (error2, result2)=>{
+        if (error2) {
+          resp.send(Response.error(500, error2));
+          throw error2;
+        }
+        resp.send(Response.ok());
+      })
     }
   );
 });
@@ -325,7 +405,6 @@ router.post("/movie-info/bind-actors", async (req, resp) => {
     resp.send(Response.error(400, error));
     return; // 结束
   }
-
   try {
     // 执行sql，将当前movie_id的数据全部删除
     let sql1 = 'delete from movie_info_map_actor where movie_id=?'
